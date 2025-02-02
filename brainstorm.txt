@@ -1,0 +1,20 @@
+LOF Python App
+
+Needs to control the following:
+  - Connection to my pedalboard; ie. port the existing fighter twister program
+  - Options for Reaper
+    - to restart, open songs, change interfaces, etc.
+    - to open in song mode or live mode
+    - Options to clear the recording folder
+    - Options to upload existing song data
+  - DMX Control
+    - This will set up a midi device to accept direction from Reaper to convert
+      to DMX code.
+    - Create a screen to send preset commands or scenes to the DMX lights
+    - Create a screen to manipulate the midi notes vs the colors? or at the very
+      least to list out what midi controls what DMX
+
+Need to figure out how to get reaper to send CC messages as automation (i
+believe i figured this out at one point already)
+
+
