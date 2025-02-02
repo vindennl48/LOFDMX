@@ -1,7 +1,7 @@
 
 import time, sys, mido
 import rtmidi # MAKE SURE TO pip install "python-rtmidi==1.5.7", nothing else!!!
-from StageLight import StageLight, Color
+from StageLight import StageLight
 
 
 ## LIGHT SETUP #################################################################
@@ -19,15 +19,15 @@ midi_in        = None
 clock_timer    = 0
 
 def is_clock_on():
-    if time.time() - clock_timer > 2.0: return False
+    if time.time() - clock_timer > 0.2: return False
     else: return True
 
 def midi_setup():
     global midi_in
     midi_in = rtmidi.MidiIn(queue_size_limit=RTMIDI_LIMIT)
     midi_in.open_virtual_port(MIDI_PORT_NAME)
-    midi_in.ignore_types(False, False, False)
-    midi_in.set_callback(midi_callback)
+    midi_in.ignore_types(False, False, False) # allow clock data
+    #  midi_in.set_callback(midi_callback)
 
 def mm_convert(message):
     midi_message, timestamp = message
@@ -44,33 +44,45 @@ def mm_convert(message):
         ctrl  = msg.control
         value = msg.value
 
+    #  print(f"--> MIDI_CONVERT: {type} {chan} {ctrl} {value}")
+
     return ignore, msg, type, chan, ctrl, value
+
+def mm_is_clock_data(message):
+    if message[0][0] == 0xF8:  # MIDI Clock message
+        return True
+    return False
 
 def midi_callback(message, data):
     global clock_timer
+    #  print(f"--> MIDI_CALLBACK: {msg}")
 
-    if message[0][0] == 0xF8:  # MIDI Clock message
-        clock_timer = time.time()
-        return
+    try:
+        if mm_is_clock_data(message):
+            clock_timer = time.time()
+            return
 
-    ignore, msg, type, chan, ctrl, value = mm_convert(message)
-    if ignore: return
+        ignore, msg, type, chan, ctrl, value = mm_convert(message)
+        if ignore: return
 
-    if ctrl == 1: light1.pan(value)
-    elif ctrl == 2: light1.tilt(value)
-    elif ctrl == 3: light1.move_speed(value if is_clock_on() else 127)
-    elif ctrl == 4: light1.color(value)
-    elif ctrl == 5: light1.gobo(value)
-    elif ctrl == 6: light1.strobe(value)
-    elif ctrl == 7: light1.dimmer(value)
+        if   ctrl == 1: light1.pan(value)
+        elif ctrl == 2: light1.tilt(value)
+        elif ctrl == 3: light1.move_speed(value)
+        elif ctrl == 4: light1.color(value)
+        elif ctrl == 5: light1.gobo(value)
+        elif ctrl == 6: light1.strobe(value)
+        elif ctrl == 7: light1.dimmer(value)
 
-    elif ctrl == 10: light2.pan(value)
-    elif ctrl == 11: light2.tilt(value)
-    elif ctrl == 12: light2.move_speed(value if is_clock_on() else 127)
-    elif ctrl == 13: light2.color(value)
-    elif ctrl == 14: light2.gobo(value)
-    elif ctrl == 15: light2.strobe(value)
-    elif ctrl == 16: light2.dimmer(value)
+        elif ctrl == 10: light2.pan(value)
+        elif ctrl == 11: light2.tilt(value)
+        elif ctrl == 12: light2.move_speed(value)
+        elif ctrl == 13: light2.color(value)
+        elif ctrl == 14: light2.gobo(value)
+        elif ctrl == 15: light2.strobe(value)
+        elif ctrl == 16: light2.dimmer(value)
+    except Exception as e:
+        pass
+        #  print(f"--> Error: {e}")
 
 def cleanup():
     midi_in.close_port()
@@ -91,10 +103,12 @@ if __name__ == '__main__':
             print("--> Running Lights!")
         else:
             try:
-                if not is_clock_on():
-                    light1.move_speed(127)
-                    light2.move_speed(127)
-                StageLight.update(delay=True)
+                msg = midi_in.get_message()
+                #  print(f"--> MIDI: {msg}")
+                while msg is not None:
+                    midi_callback(msg, None)
+                    msg = midi_in.get_message()
+                StageLight.update(force_fast=not is_clock_on())
             except KeyboardInterrupt:
                 cleanup()
                 sys.exit(0)

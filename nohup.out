@@ -26,3 +26,30 @@
     Closing 'out' port
     Port closed!
 --> All cleaned up; Goodbye!
+2025-02-02 08:38:30.622 python3[41893:635578] +[IMKClient subclass]: chose IMKClient_Modern
+2025-02-02 08:38:30.622 python3[41893:635578] +[IMKInputSession subclass]: chose IMKInputSession_Modern
+--> Wireless mode selected.
+--> Available MIDI Input Ports:
+0: Scarlett 18i20 USB
+1: WIDI Bud Pro
+--> Selecting MIDI Port 'WIDI Bud Pro' for 'fighter_twister' ..
+    Success!
+--> Selecting MIDI Port 'Axe-Fx III' for 'axefx' ..
+    Success!
+--> Selecting MIDI Port 'WIDI Bud Pro' for 'mc6_pro' ..
+    Success!
+--> All Devices Found!
+--> Closing all ports...
+--> Closing port: WIDI Bud Pro
+    Closing 'in' port
+    Closing 'out' port
+    Port closed!
+--> Closing port: Axe-Fx III
+    Closing 'in' port
+    Closing 'out' port
+    Port closed!
+--> Closing port: WIDI Bud Pro
+    Closing 'in' port
+    Closing 'out' port
+    Port closed!
+--> All cleaned up; Goodbye!

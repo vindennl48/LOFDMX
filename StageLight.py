@@ -3,155 +3,134 @@ import time
 import serial
 import serial.tools.list_ports
 
-# Channel mapping
-PAN_COARSE  = 1 # Channel 1: 0-255 position
-PAN_FINE    = 2 # Channel 2: 0-255 position
-TILT_COARSE = 3 # Channel 3: 0-255 position
-TILT_FINE   = 4 # Channel 4: 0-255 position
+DMX_MAX  = 255
+MIDI_MAX = 127
 
-#   0 -   9 White
-#  10 -  19 Red
-#  20 -  29 Green
-#  30 -  39 Blue
-#  40 -  49 Yellow
-#  50 -  59 Orange
-#  60 -  69 Light Blue
-#  70 -  79 Pink
-#  80 -  89 Light Blue + Pink
-#  90 -  99 Orange + Light Blue
-# 100 - 109 Yellow + Orange
-# 110 - 119 Blue + Yellow
-# 120 - 129 Green + Blue
-# 130 - 139 Red + Green
-# 140 - 255 Auto Color Change (rainbow)
-COLOR_WHEEL = 5 # Channel 5
+# takes in a midi value and converts it to a DMX value
+def clamp(value, min_value=0, max_value=DMX_MAX):
+    value = max(0, min(MIDI_MAX, value))
+    return round(min_value + (value * (max_value - min_value) / MIDI_MAX))
 
-#   0 -   7 Open White
-#   8 -  15 Gobo 1
-#  16 -  23 Gobo 2
-#  24 -  31 Gobo 3
-#  32 -  39 Gobo 4
-#  40 -  47 Gobo 5
-#  48 -  55 Gobo 6
-#  56 -  63 Gobo 7
-#  64 -  71 Open White Shake
-#  72 -  79 Gobo 1 Shake
-#  80 -  87 Gobo 2 Shake
-#  88 -  95 Gobo 3 Shake
-#  96 - 103 Gobo 4 Shake
-# 104 - 111 Gobo 5 Shake
-# 112 - 119 Gobo 6 Shake
-# 120 - 127 Gobo 7 Shake
-# 128 - 255 Auto Gobo Change
-GOBO_WHEEL = 6 # Channel 6
+class Map:
+    chan_map   = 9 # 9 or 11
+    num_lights = 2
 
-STROBE         = 7  # Channel 7: 0-9 N/A, 10-249 intensity, 250-255 OFF
-DIMMER         = 8  # Channel 8: 0-9 OFF, 10-255 intensity
-PAN_TILT_SPEED = 9  # Channel 9: 0-255 intensity
-RESET          = 11 # Channel 11: 0-249 N/A, 250-255 reset
+    pan       = 1                          # 0-255 position
+    pan_fine  = 2 if chan_map == 11 else 0 # 0-255 position
+    tilt      = 3 if chan_map == 11 else 2 # 0-255 position
+    tilt_fine = 4 if chan_map == 11 else 0 # 0-255 position
 
-TOTAL_LIGHTS = 24
+    #   0 -   9 White
+    #  10 -  19 Red
+    #  20 -  29 Green
+    #  30 -  39 Blue
+    #  40 -  49 Yellow
+    #  50 -  59 Orange
+    #  60 -  69 Light Blue
+    #  70 -  79 Pink
+    #  80 -  89 Light Blue + Pink
+    #  90 -  99 Orange + Light Blue
+    # 100 - 109 Yellow + Orange
+    # 110 - 119 Blue + Yellow
+    # 120 - 129 Green + Blue
+    # 130 - 139 Red + Green
+    # 140 - 255 Auto Color Change (rainbow)
+    color_wheel = 5 if chan_map == 11 else 3
 
-def clamp(value, min_value=0, max_value=255):
-    value = max(0, min(127, value))
-    return round(min_value + (value * (max_value - min_value) / 127))
+    #   0 -   7 Open White
+    #   8 -  15 Gobo 1
+    #  16 -  23 Gobo 2
+    #  24 -  31 Gobo 3
+    #  32 -  39 Gobo 4
+    #  40 -  47 Gobo 5
+    #  48 -  55 Gobo 6
+    #  56 -  63 Gobo 7
+    #  64 -  71 Open White Shake
+    #  72 -  79 Gobo 1 Shake
+    #  80 -  87 Gobo 2 Shake
+    #  88 -  95 Gobo 3 Shake
+    #  96 - 103 Gobo 4 Shake
+    # 104 - 111 Gobo 5 Shake
+    # 112 - 119 Gobo 6 Shake
+    # 120 - 127 Gobo 7 Shake
+    # 128 - 255 Auto Gobo Change
+    gobo_wheel = 6 if chan_map == 11 else 4
 
+    strobe         =  7 if chan_map == 11 else 5 # 0-9 N/A, 10-249 intensity, 250-255 OFF
+    dimmer         =  8 if chan_map == 11 else 6 # 0-9 OFF, 10-255 intensity
+    pan_tilt_speed =  9 if chan_map == 11 else 7 # 0-255 intensity
+    auto_mode      = 10 if chan_map == 11 else 8 # ignore for now
+    reset          = 11 if chan_map == 11 else 9 # 0-249 N/A, 250-255 reset
+
+# use as raw input
 class Color:
-    white  = clamp( 5, 0, 255) # 10
-    red    = clamp(15, 0, 255) # 30
-    green  = clamp(25, 0, 255) # 50
-    blue   = clamp(35, 0, 255) # 70
-    yellow = clamp(45, 0, 255) # 90
-    orange = clamp(55, 0, 255) # 110
+    white  =  5
+    red    = 15
+    green  = 25
+    blue   = 35
+    yellow = 45
+    orange = 55
+
+def get_new_frame():
+    return bytearray([0x00] + ([0] * (Map.num_lights * Map.chan_map)))
 
 class StageLight:
-    port      = None
-    ser       = None
-    dmx_frame = bytearray([0x00] + [0] * 512)
+    port       = None
+    ser        = None
+    frame      = get_new_frame()
+    temp_frame = get_new_frame()
 
-    @staticmethod
-    def update(delay=True):
-        if StageLight.ser is not None:
-            StageLight.ser.send_break(duration=0.001)
-            StageLight.ser.write(StageLight.dmx_frame)
-            if delay: time.sleep(0.04)
-
-    @staticmethod
-    def reset_all():
-        print("--> Resetting all lights")
-        StageLight.dmx_frame = bytearray([0x00] + [0] * 512)
-
-        for i in range(1, TOTAL_LIGHTS):
-            StageLight.dmx_frame[i * RESET] = 255
-
-        for i in range(10):
-            StageLight.update(delay=True)
-
-        for i in range(1, TOTAL_LIGHTS):
-            StageLight.dmx_frame[i * RESET] = 0
-
-        print("--> Finished resetting all lights")
-
-    def __init__(self, channel):
-        self.channel         = clamp(channel, 1, TOTAL_LIGHTS)
-        StageLight.dmx_frame = bytearray([0x00] + [0] * 512)
-
-    def reset(self):
-        for i in range(1, 11):
-            StageLight.dmx_frame[self.channel * i] = 0
-        StageLight.dmx_frame[self.channel * STROBE] = 255
-        StageLight.dmx_frame[self.channel * RESET]  = 255
-
-    def pan(self, value, fine = 0):
-        StageLight.dmx_frame[self.channel * PAN_COARSE] = clamp(value)
-        StageLight.dmx_frame[self.channel * PAN_FINE]   = clamp(fine)
-
-    def tilt(self, value, fine = 0):
-        StageLight.dmx_frame[self.channel * TILT_COARSE] = clamp(value)
-        StageLight.dmx_frame[self.channel * TILT_FINE]   = clamp(fine)
-
-    def move_speed(self, value):
-        StageLight.dmx_frame[self.channel * PAN_TILT_SPEED] = 255 - clamp(value)
-
-    def dimmer(self, value):
-        StageLight.dmx_frame[self.channel * DIMMER] = clamp(value, 9, 255)
-
-    def strobe(self, value):
-        StageLight.dmx_frame[self.channel * STROBE] = clamp(value, 0, 255)
-
-    def color(self, value, is_raw = False):
-        if not is_raw: value = clamp(value, 0, 255)
-        StageLight.dmx_frame[self.channel * COLOR_WHEEL] = value
-
-    def gobo(self, value, is_raw = False):
-        if not is_raw: value = clamp(value, 0, 255)
-        StageLight.dmx_frame[self.channel * GOBO_WHEEL] = value
-
-## PRIVATE #####################################################################
     @staticmethod
     def setup():
-        StageLight.port = StageLight.__find_enttec_device()
+        StageLight.frame = get_new_frame()
+        StageLight.port  = StageLight.__find_enttec_device()
+        StageLight.ser   = StageLight.__get_serial()
 
-        while True:
-            try:
-                StageLight.ser  = serial.Serial(
-                    port     = StageLight.port,
-                    baudrate = 250000,
-                    bytesize = serial.EIGHTBITS,
-                    parity   = serial.PARITY_NONE,
-                    stopbits = serial.STOPBITS_TWO,
-                    timeout  = 1
-                )
-                StageLight.ser.dtr = False
-                StageLight.ser.rts = False
+    @staticmethod
+    def update(force_fast=False):
+        #  print(f"--> Sending DMX frame, force_fast={force_fast}")
+        if StageLight.ser is not None:
+            StageLight.frame[0] = 0x00 # confirm first byte is zero
+            if force_fast:
+                StageLight.temp_frame = StageLight.frame[:]
+                for i in range(1, Map.num_lights):
+                    StageLight.temp_frame[i * Map.pan_tilt_speed] = 0
+            StageLight.ser.send_break(100e-6)
+            StageLight.ser.write(StageLight.temp_frame if force_fast else StageLight.frame)
+            if force_fast:
+                time.sleep(0.0008)
 
-                #  StageLight.reset_all()
+    def __init__(self, channel):
+        if channel < 1 or channel > Map.num_lights:
+            raise ValueError(f"Channel must be between 1 and {Map.num_lights}")
+        self.channel = clamp(channel, 1, Map.num_lights)
 
-                return
-            except:
-                print("--> Error: Could not connect to ENTTEC Open DMX USB device Serial Port")
-                time.sleep(2)
+    def pan(self, value, fine = 0):
+        StageLight.frame[self.channel * Map.pan] = clamp(value)
+        StageLight.frame[self.channel * Map.pan_fine] = clamp(fine)
 
+    def tilt(self, value, fine = 0):
+        StageLight.frame[self.channel * Map.tilt] = clamp(value)
+        StageLight.frame[self.channel * Map.tilt_fine] = clamp(fine)
+
+    def move_speed(self, value):
+        StageLight.frame[self.channel * Map.pan_tilt_speed] = DMX_MAX - clamp(value)
+
+    def dimmer(self, value):
+        StageLight.frame[self.channel * Map.dimmer] = clamp(value, 9, DMX_MAX)
+
+    def strobe(self, value):
+        StageLight.frame[self.channel * Map.strobe] = clamp(value, 9, 249)
+
+    def color(self, value, is_raw = False):
+        if not is_raw: value = clamp(value, 0, DMX_MAX)
+        StageLight.frame[self.channel * Map.color_wheel] = value
+
+    def gobo(self, value, is_raw = False):
+        if not is_raw: value = clamp(value, 0, DMX_MAX)
+        StageLight.frame[self.channel * Map.gobo_wheel] = value
+
+## PRIVATE #####################################################################
     @staticmethod
     def __find_enttec_device():
         """Search for ENTTEC Open DMX USB devices"""
@@ -165,4 +144,24 @@ class StageLight:
                     print("--> Found ENTTEC Open DMX USB device!")
                     return port.device
             print("--> ENTTEC Open DMX USB device not found")
-            time.sleep(2)
+            time.sleep(1)
+
+    @staticmethod
+    def __get_serial():
+        while True:
+            try:
+                new_ser = serial.Serial(
+                    port     = StageLight.port,
+                    baudrate = 250000,
+                    bytesize = serial.EIGHTBITS,
+                    parity   = serial.PARITY_NONE,
+                    stopbits = serial.STOPBITS_TWO,
+                    timeout  = 1
+                )
+
+                new_ser.dtr = False
+                new_ser.rts = False
+                return new_ser
+            except:
+                print("--> Error: Could not connect to ENTTEC Open DMX USB device Serial Port")
+                time.sleep(1)
