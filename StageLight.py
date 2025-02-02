@@ -1,4 +1,5 @@
-# Stage Light
+# StageLight.py
+
 import time
 import serial
 import serial.tools.list_ports

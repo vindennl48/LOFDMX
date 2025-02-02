@@ -1,3 +1,5 @@
+# GUIApplication.py
+
 """
 GUIApplication - Thread-Safe Tkinter GUI with Background Task Management
 
