@@ -96,10 +96,12 @@ class StageLight:
                 StageLight.temp_frame = StageLight.frame[:]
                 for i in range(1, Map.num_lights):
                     StageLight.temp_frame[i * Map.pan_tilt_speed] = 0
-            StageLight.ser.send_break(100e-6)
+            #  StageLight.ser.send_break(100e-6) # cant use this on mac, it forces at 400ms minimum
+            StageLight.ser.break_condition = True
+            time.sleep(5e-6)
+            StageLight.ser.break_condition = False
+            time.sleep(1e-6)
             StageLight.ser.write(StageLight.temp_frame if force_fast else StageLight.frame)
-            if force_fast:
-                time.sleep(0.0008)
 
     def __init__(self, channel):
         if channel < 1 or channel > Map.num_lights:
@@ -118,10 +120,10 @@ class StageLight:
         StageLight.frame[self.channel * Map.pan_tilt_speed] = DMX_MAX - clamp(value)
 
     def dimmer(self, value):
-        StageLight.frame[self.channel * Map.dimmer] = clamp(value, 9, DMX_MAX)
+        StageLight.frame[self.channel * Map.dimmer] = clamp(value, 0, DMX_MAX)
 
     def strobe(self, value):
-        StageLight.frame[self.channel * Map.strobe] = clamp(value, 9, 249)
+        StageLight.frame[self.channel * Map.strobe] = clamp(value, 0, 249)
 
     def color(self, value, is_raw = False):
         if not is_raw: value = clamp(value, 0, DMX_MAX)
