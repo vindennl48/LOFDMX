@@ -19,6 +19,7 @@ class MidiHandler:
         try:
             msg = mido.parse(message[0])
 
+
             if msg.type == "clock":
                 self.clock_timer = time.time()
                 return
@@ -26,16 +27,18 @@ class MidiHandler:
             if msg.type != "control_change" or msg.channel != self.midi_port_chan:
                 return
 
+            #  print(f"--> MIDI: {msg}")
+
             for i in range(len(lights)):
-                if   msg.control == 1 + (i * 10): lights[i].pan(msg.value)
-                elif msg.control == 2 + (i * 10): lights[i].tilt(msg.value)
-                elif msg.control == 3 + (i * 10): lights[i].move_speed(msg.value)
-                elif msg.control == 4 + (i * 10): lights[i].color(msg.value)
-                elif msg.control == 5 + (i * 10): lights[i].gobo(msg.value)
-                elif msg.control == 6 + (i * 10): lights[i].strobe(msg.value)
-                elif msg.control == 7 + (i * 10): lights[i].dimmer(msg.value)
+                if   msg.control == 1 + (i * 9): lights[i].pan(msg.value)
+                elif msg.control == 2 + (i * 9): lights[i].tilt(msg.value)
+                elif msg.control == 3 + (i * 9): lights[i].move_speed(msg.value)
+                elif msg.control == 4 + (i * 9): lights[i].color(msg.value)
+                elif msg.control == 5 + (i * 9): lights[i].gobo(msg.value)
+                elif msg.control == 6 + (i * 9): lights[i].strobe(msg.value)
+                elif msg.control == 7 + (i * 9): lights[i].dimmer(msg.value)
         except Exception as e:
-            #  print(f"--> Error: {e}")
+            print(f"--> Error: {e}")
             return
 
     def empty_queue(self, lights):

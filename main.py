@@ -11,8 +11,9 @@ MIDI_PORT_CHAN = (11-1) # chan 11
 app = GUIApplication(title = MIDI_PORT_NAME, width = 400, height = 200)
 
 def main(exit_event):
+    print("--> Starting..")
     initialized  = False
-    lights       = [StageLight(1), StageLight(2)]
+    lights       = [ StageLight(1), StageLight(10), StageLight(19) ]
     midi_handler = MidiHandler(MIDI_PORT_NAME, MIDI_PORT_CHAN)
 
     while True:

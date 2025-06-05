@@ -14,7 +14,7 @@ def clamp(value, min_value=0, max_value=DMX_MAX):
 
 class Map:
     chan_map   = 9 # 9 or 11
-    num_lights = 2
+    num_lights = 3
 
     pan       = 1                          # 0-255 position
     pan_fine  = 2 if chan_map == 11 else 0 # 0-255 position
@@ -65,12 +65,20 @@ class Map:
 
 # use as raw input
 class Color:
-    white  =  5
-    red    = 15
-    green  = 25
-    blue   = 35
-    yellow = 45
-    orange = 55
+    white             = 5
+    red               = 15
+    green             = 25
+    blue              = 35
+    yellow            = 45
+    orange            = 55
+    light_blue        = 65
+    pink              = 75
+    light_blue_pink   = 85
+    orange_light_blue = 95
+    yellow_orange     = 105
+    blue_yellow       = 115
+    green_blue        = 125
+    red_green         = 135
 
 def get_new_frame():
     return bytearray([0x00] + ([0] * (Map.num_lights * Map.chan_map)))
@@ -88,50 +96,59 @@ class StageLight:
         StageLight.ser   = StageLight.__get_serial()
 
     @staticmethod
+    # force_fast = True will force pan_tilt_speed to max,
+    #              false will follow commanded speed
     def update(force_fast=False):
+        force_fast = True
         #  print(f"--> Sending DMX frame, force_fast={force_fast}")
         if StageLight.ser is not None:
             StageLight.frame[0] = 0x00 # confirm first byte is zero
             if force_fast:
                 StageLight.temp_frame = StageLight.frame[:]
-                for i in range(1, Map.num_lights):
-                    StageLight.temp_frame[i * Map.pan_tilt_speed] = 0
+                for i in range(0, Map.num_lights-1):
+                    StageLight.temp_frame[(i * 9) + Map.pan_tilt_speed] = 0
             #  StageLight.ser.send_break(100e-6) # cant use this on mac, it forces at 400ms minimum
             StageLight.ser.break_condition = True
             time.sleep(5e-6)
             StageLight.ser.break_condition = False
             time.sleep(1e-6)
             StageLight.ser.write(StageLight.temp_frame if force_fast else StageLight.frame)
+            StageLight.ser.flush()  # Wait until data is transmitted
+            time.sleep(0.001)  # Additional 1ms delay if needed
 
     def __init__(self, channel):
-        if channel < 1 or channel > Map.num_lights:
-            raise ValueError(f"Channel must be between 1 and {Map.num_lights}")
-        self.channel = clamp(channel, 1, Map.num_lights)
+        print(f"--> Setting up StageLight {channel}")
+        #  if channel < 1 or channel > Map.num_lights:
+            #  raise ValueError(f"Channel must be between 1 and {Map.num_lights}")
+        self.channel = channel-1
+        print(f"    StageLight {self.channel} is set up!")
 
     def pan(self, value, fine = 0):
-        StageLight.frame[self.channel * Map.pan] = clamp(value)
-        StageLight.frame[self.channel * Map.pan_fine] = clamp(fine)
+        StageLight.frame[self.channel + Map.pan] = clamp(value)
+        StageLight.frame[self.channel + Map.pan_fine] = clamp(fine)
 
     def tilt(self, value, fine = 0):
-        StageLight.frame[self.channel * Map.tilt] = clamp(value)
-        StageLight.frame[self.channel * Map.tilt_fine] = clamp(fine)
+        StageLight.frame[self.channel + Map.tilt] = clamp(value)
+        StageLight.frame[self.channel + Map.tilt_fine] = clamp(fine)
 
+    # move_speed is reverse set to handle how Reaper deals with sending controls
+    # 0 is fastest, 255 is slowest
     def move_speed(self, value):
-        StageLight.frame[self.channel * Map.pan_tilt_speed] = DMX_MAX - clamp(value)
+        StageLight.frame[self.channel + Map.pan_tilt_speed] = DMX_MAX - clamp(value)
 
     def dimmer(self, value):
-        StageLight.frame[self.channel * Map.dimmer] = clamp(value, 0, DMX_MAX)
+        StageLight.frame[self.channel + Map.dimmer] = clamp(value, 0, DMX_MAX)
 
     def strobe(self, value):
-        StageLight.frame[self.channel * Map.strobe] = clamp(value, 0, 249)
+        StageLight.frame[self.channel + Map.strobe] = clamp(value, 0, 249)
 
     def color(self, value, is_raw = False):
         if not is_raw: value = clamp(value, 0, DMX_MAX)
-        StageLight.frame[self.channel * Map.color_wheel] = value
+        StageLight.frame[self.channel + Map.color_wheel] = value
 
     def gobo(self, value, is_raw = False):
         if not is_raw: value = clamp(value, 0, DMX_MAX)
-        StageLight.frame[self.channel * Map.gobo_wheel] = value
+        StageLight.frame[self.channel + Map.gobo_wheel] = value
 
 ## PRIVATE #####################################################################
     @staticmethod
