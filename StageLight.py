@@ -114,7 +114,7 @@ class StageLight:
             time.sleep(1e-6)
             StageLight.ser.write(StageLight.temp_frame if force_fast else StageLight.frame)
             StageLight.ser.flush()  # Wait until data is transmitted
-            time.sleep(0.001)  # Additional 1ms delay if needed
+            time.sleep(0.002)  # Additional 1ms delay if needed
 
     def __init__(self, channel):
         print(f"--> Setting up StageLight {channel}")
