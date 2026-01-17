@@ -124,8 +124,9 @@ class StageLight:
         print(f"    StageLight {self.channel} is set up!")
 
     def pan(self, value, fine = 0):
-        StageLight.frame[self.channel + Map.pan] = clamp(value)
-        StageLight.frame[self.channel + Map.pan_fine] = clamp(fine)
+        alt_value = 182
+        StageLight.frame[self.channel + Map.pan] = clamp(value, 0, alt_value)
+        StageLight.frame[self.channel + Map.pan_fine] = clamp(fine, 0, alt_value)
 
     def tilt(self, value, fine = 0):
         StageLight.frame[self.channel + Map.tilt] = clamp(value)
